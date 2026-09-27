@@ -1,0 +1,6 @@
+{
+  "buildCommand": "corepack pnpm --filter @boutique-pos/web build",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "corepack pnpm install --frozen-lockfile",
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+}
