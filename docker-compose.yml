@@ -1,0 +1,39 @@
+# Optional: only needed if you are NOT using Supabase directly (e.g. local dev without internet,
+# or you want a local Postgres that mirrors prod). If using Supabase, you can skip docker-compose
+# for the database and just point DATABASE_URL at Supabase in .env.
+version: "3.9"
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.api
+    ports:
+      - "4000:4000"
+    env_file: .env
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: boutique_pos
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
