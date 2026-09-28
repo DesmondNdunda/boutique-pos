@@ -42,8 +42,18 @@ productsRouter.post("/images", requireRole("OWNER", "MANAGER"), requireCurrentSu
     return;
   }
   const base = env.supabase.url.replace(/\/$/, "");
+  const storageHeaders: Record<string, string> = {
+    apikey: env.supabase.serviceRoleKey,
+    "Content-Type": mimeType,
+    "x-upsert": "false",
+  };
+  // Supabase's new sb_secret_* API keys are not JWTs and must not be sent as
+  // Bearer tokens. Legacy service_role keys are JWTs and still need this header.
+  if (!env.supabase.serviceRoleKey.startsWith("sb_secret_")) {
+    storageHeaders.Authorization = `Bearer ${env.supabase.serviceRoleKey}`;
+  }
   const uploaded = await fetch(`${base}/storage/v1/object/${encodeURIComponent(env.supabase.bucket)}/${path.split("/").map(encodeURIComponent).join("/")}`, {
-    method: "POST", headers: { Authorization: `Bearer ${env.supabase.serviceRoleKey}`, apikey: env.supabase.serviceRoleKey, "Content-Type": mimeType, "x-upsert": "false" }, body: bytes,
+    method: "POST", headers: storageHeaders, body: bytes,
   });
   if (!uploaded.ok) throw new AppError(502, "Image upload failed");
   res.status(201).json({ imageUrl: `${base}/storage/v1/object/public/${encodeURIComponent(env.supabase.bucket)}/${path.split("/").map(encodeURIComponent).join("/")}` });
