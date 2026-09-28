@@ -30,7 +30,7 @@ async function main() {
     ]) {
       await prisma.user.upsert({
         where: { organizationId_email: { organizationId: existingDemoOrg.id, email: account.email } },
-        update: { name: account.name, passwordHash },
+        update: { name: account.name, passwordHash, isActive: true },
         create: {
           organizationId: existingDemoOrg.id,
           branchId: branch?.id,
@@ -41,7 +41,7 @@ async function main() {
         },
       });
     }
-    console.log("Ashler Trends demo accounts updated with the supplied password.");
+    console.log("Ashler Trends demo accounts reactivated and updated with the supplied password.");
     return;
   }
   const org = await prisma.organization.create({
