@@ -4,13 +4,44 @@ import argon2 from "argon2";
 const prisma = new PrismaClient();
 
 async function main() {
+  const demoAccountPassword = process.env.DEMO_ACCOUNT_PASSWORD ?? "password123";
+  if (demoAccountPassword.length < 8) {
+    throw new Error("DEMO_ACCOUNT_PASSWORD must be at least 8 characters long.");
+  }
+
   const existingDemoOrg = await prisma.organization.findUnique({ where: { slug: "ashler-trends" } });
   if (existingDemoOrg) {
-    await prisma.user.updateMany({
-      where: { organizationId: existingDemoOrg.id, email: "sales@ashlertrends.test" },
-      data: { name: "Desmond" },
+    if (!process.env.DEMO_ACCOUNT_PASSWORD) {
+      await prisma.user.updateMany({
+        where: { organizationId: existingDemoOrg.id, email: "sales@ashlertrends.test" },
+        data: { name: "Desmond" },
+      });
+      console.log("Ashler Trends already exists; updated the demo staff name to Desmond.");
+      return;
+    }
+
+    const branch = await prisma.branch.findFirst({
+      where: { organizationId: existingDemoOrg.id, isMain: true },
     });
-    console.log("Ashler Trends already exists; updated the demo staff name to Desmond.");
+    const passwordHash = await argon2.hash(demoAccountPassword);
+    for (const account of [
+      { name: "Amina", email: "amina@ashlertrends.test", role: "OWNER" as const },
+      { name: "Desmond", email: "sales@ashlertrends.test", role: "EMPLOYEE" as const },
+    ]) {
+      await prisma.user.upsert({
+        where: { organizationId_email: { organizationId: existingDemoOrg.id, email: account.email } },
+        update: { name: account.name, passwordHash },
+        create: {
+          organizationId: existingDemoOrg.id,
+          branchId: branch?.id,
+          name: account.name,
+          email: account.email,
+          passwordHash,
+          role: account.role,
+        },
+      });
+    }
+    console.log("Ashler Trends demo accounts updated with the supplied password.");
     return;
   }
   const org = await prisma.organization.create({
@@ -25,6 +56,7 @@ async function main() {
     include: { branches: true },
   });
   const branch = org.branches[0];
+  const passwordHash = await argon2.hash(demoAccountPassword);
 
   const owner = await prisma.user.create({
     data: {
@@ -32,7 +64,7 @@ async function main() {
       branchId: branch.id,
       name: "Amina",
       email: "amina@ashlertrends.test",
-      passwordHash: await argon2.hash("password123"),
+      passwordHash,
       role: "OWNER",
     },
   });
@@ -44,7 +76,7 @@ async function main() {
       branchId: branch.id,
       name: "Desmond",
       email: "sales@ashlertrends.test",
-      passwordHash: await argon2.hash("password123"),
+      passwordHash,
       role: "EMPLOYEE",
     },
   });
