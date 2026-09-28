@@ -5,6 +5,34 @@ import { productImageSrc } from "../lib/imageUrl";
 import { useAuth } from "../store/auth";
 import type { Product } from "@boutique-pos/shared";
 
+async function optimizeProductImage(file: File): Promise<Blob> {
+  if (typeof createImageBitmap !== "function") return file;
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not optimize image")), "image/webp", 0.82);
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("Could not read image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function Products() {
   const { user, activeBranchId } = useAuth();
   const qc = useQueryClient();
@@ -61,16 +89,18 @@ function AddProductModal({ branchId, onClose, onSaved }: { branchId: string; onC
   const [photoUrl, setPhotoUrl] = useState("");
   const [variants, setVariants] = useState<VariantRow[]>([{ size: "", color: "", initialStock: 0 }]);
   const [error, setError] = useState<string | null>(null);
+  const [saveProgress, setSaveProgress] = useState("");
 
   const mutation = useMutation({
     mutationFn: async () => {
       let imageUrl: string | undefined = photoUrl.trim() || undefined;
       if (imageFile) {
-        const data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] ?? ""); reader.onerror = () => reject(new Error("Could not read image")); reader.readAsDataURL(imageFile);
-        });
-        imageUrl = (await api.post("/products/images", { data, contentType: imageFile.type })).data.imageUrl;
+        setSaveProgress("Optimizing photo…");
+        const optimized = await optimizeProductImage(imageFile);
+        setSaveProgress("Uploading photo…");
+        imageUrl = (await api.post("/products/images", { data: await blobToBase64(optimized), contentType: optimized.type || imageFile.type })).data.imageUrl;
       }
+      setSaveProgress("Saving product…");
       const payload = {
         name,
         basePrice: Number(basePrice),
@@ -84,7 +114,7 @@ function AddProductModal({ branchId, onClose, onSaved }: { branchId: string; onC
       return (await api.post("/products", payload)).data;
     },
     onSuccess: () => { onSaved(); onClose(); },
-    onError: (e: any) => setError(e.message),
+    onError: (e: any) => { setError(e.message); setSaveProgress(""); },
   });
 
   return (
@@ -137,7 +167,7 @@ function AddProductModal({ branchId, onClose, onSaved }: { branchId: string; onC
         <div className="flex gap-2 pt-2">
           <button onClick={onClose} className="flex-1 border rounded-md py-2 text-sm">Cancel</button>
           <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name || !basePrice} className="flex-1 bg-brand text-white rounded-md py-2 text-sm disabled:opacity-50">
-            {mutation.isPending ? "Saving..." : "Save"}
+            {mutation.isPending ? (saveProgress || "Saving…") : "Save"}
           </button>
         </div>
       </div>

@@ -21,49 +21,39 @@ export async function createProductWithActor(
     variants: { size?: string | null; color?: string | null; price?: number; initialStock: number }[];
   }
 ) {
-  return prisma.$transaction(async (tx) => {
-    const product = await tx.product.create({
-      data: {
-        organizationId,
-        categoryId: input.categoryId,
-        name: input.name,
-        description: input.description,
-        basePrice: input.basePrice,
-        imageUrl: input.imageUrl,
-        hasVariants: input.hasVariants,
+  return prisma.product.create({
+    data: {
+      organizationId,
+      categoryId: input.categoryId,
+      name: input.name,
+      description: input.description,
+      basePrice: input.basePrice,
+      imageUrl: input.imageUrl,
+      hasVariants: input.hasVariants,
+      variants: {
+        create: input.variants.map((variant) => ({
+          size: variant.size ?? null,
+          color: variant.color ?? null,
+          price: variant.price,
+          inventory: { create: { branchId: input.branchId, quantity: variant.initialStock } },
+          ...(variant.initialStock > 0 ? {
+            stockMovements: {
+              create: {
+                organizationId,
+                branchId: input.branchId,
+                userId,
+                reason: "RESTOCK",
+                quantityBefore: 0,
+                quantityChange: variant.initialStock,
+                quantityAfter: variant.initialStock,
+                note: "Initial stock on product creation",
+              },
+            },
+          } : {}),
+        })),
       },
-    });
-
-    for (const v of input.variants) {
-      const variant = await tx.productVariant.create({
-        data: { productId: product.id, size: v.size ?? null, color: v.color ?? null, price: v.price },
-      });
-
-      await tx.inventory.create({
-        data: { branchId: input.branchId, variantId: variant.id, quantity: v.initialStock },
-      });
-
-      if (v.initialStock > 0) {
-        await tx.stockMovement.create({
-          data: {
-            organizationId,
-            branchId: input.branchId,
-            variantId: variant.id,
-            userId,
-            reason: "RESTOCK",
-            quantityBefore: 0,
-            quantityChange: v.initialStock,
-            quantityAfter: v.initialStock,
-            note: "Initial stock on product creation",
-          },
-        });
-      }
-    }
-
-    return tx.product.findUniqueOrThrow({
-      where: { id: product.id },
-      include: { variants: { include: { inventory: true } }, category: true },
-    });
+    },
+    include: { variants: { include: { inventory: true } }, category: true },
   });
 }
 
