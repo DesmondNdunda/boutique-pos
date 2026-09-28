@@ -56,6 +56,14 @@ export async function inviteUser(
   organizationId: string,
   input: { name: string; email: string; password: string; role: "MANAGER" | "EMPLOYEE"; branchId?: string }
 ) {
+  let branchId = input.branchId;
+  if (branchId) {
+    const branch = await prisma.branch.findFirst({ where: { id: branchId, organizationId } });
+    if (!branch) throw conflict("That branch does not belong to your store");
+  } else {
+    const mainBranch = await prisma.branch.findFirst({ where: { organizationId, isMain: true }, select: { id: true } });
+    branchId = mainBranch?.id;
+  }
   const existing = await prisma.user.findUnique({
     where: { organizationId_email: { organizationId, email: input.email.toLowerCase() } },
   });
@@ -65,7 +73,7 @@ export async function inviteUser(
   return prisma.user.create({
     data: {
       organizationId,
-      branchId: input.branchId,
+      branchId,
       name: input.name,
       email: input.email.toLowerCase(),
       passwordHash,

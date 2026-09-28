@@ -42,6 +42,7 @@ export function Products() {
   const { data } = useQuery({
     queryKey: ["products", activeBranchId],
     queryFn: async () => (await api.get("/products", { params: { branchId: activeBranchId } })).data.products as Product[],
+    refetchInterval: user?.role === "EMPLOYEE" ? 15_000 : false,
   });
 
   return (
@@ -61,7 +62,7 @@ export function Products() {
           return (
             <div key={p.id} className="bg-white border rounded-xl p-3">
               <div className="aspect-square bg-slate-100 rounded-lg mb-2 flex items-center justify-center text-2xl">
-                {p.imageUrl ? <img src={productImageSrc(p.imageUrl)} alt={p.name} className="rounded-lg object-cover w-full h-full" /> : "👕"}
+                {p.imageUrl ? <img src={productImageSrc(p.imageUrl)} alt={p.name} loading="lazy" decoding="async" className="rounded-lg object-cover w-full h-full" /> : "👕"}
               </div>
               <div className="text-sm font-medium truncate">{p.name}</div>
               <div className="text-xs text-slate-500">KSh {Number(p.basePrice).toLocaleString()}</div>

@@ -6,7 +6,7 @@ import { useAuth } from "../store/auth";
 import type { Product, CartItem, PaymentMethod } from "@boutique-pos/shared";
 
 export function Sell() {
-  const { activeBranchId } = useAuth();
+  const { activeBranchId, user } = useAuth();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paying, setPaying] = useState(false);
@@ -14,6 +14,7 @@ export function Sell() {
   const { data: products } = useQuery({
     queryKey: ["products", activeBranchId, search],
     queryFn: async () => (await api.get("/products", { params: { branchId: activeBranchId, search: search || undefined } })).data.products as Product[],
+    refetchInterval: user?.role === "EMPLOYEE" ? 15_000 : false,
   });
 
   function addToCart(product: Product, variantId: string) {

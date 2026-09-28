@@ -33,10 +33,24 @@ export const attachSession = asyncHandler(async (req: Request, _res: Response, n
     return next();
   }
 
+  // Older employee accounts may predate branch assignment. Attach them to
+  // the store's main branch so their branch-scoped catalogue and stock load.
+  let branchId = session.user.branchId;
+  if (session.user.role === "EMPLOYEE" && !branchId) {
+    const mainBranch = await prisma.branch.findFirst({
+      where: { organizationId: session.user.organizationId, isMain: true },
+      select: { id: true },
+    });
+    if (mainBranch) {
+      branchId = mainBranch.id;
+      await prisma.user.update({ where: { id: session.user.id }, data: { branchId } });
+    }
+  }
+
   req.auth = {
     userId: session.user.id,
     organizationId: session.user.organizationId,
-    branchId: session.user.branchId,
+    branchId,
     role: session.user.role,
   };
   next();

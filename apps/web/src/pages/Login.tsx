@@ -33,17 +33,17 @@ export function Login() {
           <h1 className="text-xl font-semibold text-center">Ashler Trends</h1>
         </div>
         <div>
-          <label className="text-sm text-slate-600">Name</label>
+          <label className="text-sm text-slate-600">Email or name</label>
           <input
             type="text" autoComplete="username" required value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="Amina or Desmond" className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
+            placeholder="you@example.com" className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
           />
         </div>
         <div>
           <label className="text-sm text-slate-600">Password</label>
           <div className="relative mt-1">
             <input
-              type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)}
+              type={showPassword ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)}
               className="w-full border rounded-md px-3 py-2 pr-16 text-sm"
             />
             <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute inset-y-0 right-3 text-xs text-slate-500" aria-label={showPassword ? "Hide password" : "Show password"}>
@@ -58,10 +58,6 @@ export function Login() {
         <p className="text-center text-sm text-slate-500">
           New here? <Link to="/register" className="text-brand font-medium">Create your store</Link>
         </p>
-        <div className="flex justify-center gap-4 text-xs text-slate-500">
-          <button type="button" onClick={() => { setIdentifier("Amina"); setPassword("password123"); setError(null); }} className="underline underline-offset-2">Demo owner: Amina</button>
-          <button type="button" onClick={() => { setIdentifier("Desmond"); setPassword("password123"); setError(null); }} className="underline underline-offset-2">Demo staff: Desmond</button>
-        </div>
       </form>
     </div>
   );
