@@ -30,6 +30,23 @@ wooCommerceRouter.get("/gateways", asyncHandler(async (req, res) => {
   res.json({ gateways: await WooCommerce.listGateways(req.auth!.organizationId) });
 }));
 
+wooCommerceRouter.put("/wordpress-access", asyncHandler(async (req, res) => {
+  const input = z.object({
+    username: z.string().trim().min(1).max(150),
+    applicationPassword: z.string().trim().min(16).max(128),
+  }).parse(req.body);
+  res.json(await WooCommerce.saveWordPressAccess(req.auth!.organizationId, input.username, input.applicationPassword));
+}));
+
+wooCommerceRouter.get("/wordpress-plugins", asyncHandler(async (req, res) => {
+  res.json(await WooCommerce.getRecommendedPlugins(req.auth!.organizationId));
+}));
+
+wooCommerceRouter.post("/wordpress-plugins/:slug/install", asyncHandler(async (req, res) => {
+  const { slug } = z.object({ slug: z.string().trim().min(1).max(80) }).parse(req.params);
+  res.json(await WooCommerce.installRecommendedPlugin(req.auth!.organizationId, slug));
+}));
+
 wooCommerceRouter.patch("/gateways/:gatewayId", asyncHandler(async (req, res) => {
   const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
   const gateway = await WooCommerce.setGatewayEnabled(req.auth!.organizationId, req.params.gatewayId, enabled);

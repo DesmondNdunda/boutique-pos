@@ -87,6 +87,64 @@ async function clientFor(input: WooCredentials): Promise<AxiosInstance> {
   });
 }
 
+type WordPressAccess = { storeUrl: string; username: string; applicationPassword: string };
+
+const recommendedPlugins = [
+  { slug: "updraftplus", name: "UpdraftPlus", purpose: "Schedule backups and send them to remote storage. Configure and test a restore after installing." },
+  { slug: "wordfence", name: "Wordfence Security", purpose: "Adds a firewall, malware scans, and login protection. Review its setup after installing." },
+  { slug: "wordpress-seo", name: "Yoast SEO", purpose: "Manage search previews, page metadata, and XML sitemaps." },
+] as const;
+
+async function wordpressClient(access: WordPressAccess): Promise<AxiosInstance> {
+  const baseURL = `${await normalizeStoreUrl(access.storeUrl)}/wp-json/wp/v2`;
+  return axios.create({
+    baseURL,
+    auth: { username: access.username, password: access.applicationPassword },
+    timeout: 20000,
+    maxRedirects: 0,
+    httpsAgent: new HttpsAgent({ lookup: publicOnlyLookup }),
+    headers: { Accept: "application/json" },
+  });
+}
+
+async function getWordPressAccess(organizationId: string): Promise<WordPressAccess> {
+  const integration = await prisma.wooCommerceIntegration.findUnique({ where: { organizationId } });
+  if (!integration) throw new AppError(404, "Connect WooCommerce before managing WordPress plugins");
+  if (!integration.wpUsername || !integration.wpApplicationPasswordEncrypted) {
+    throw new AppError(400, "Add a WordPress Application Password to manage plugins");
+  }
+  return {
+    storeUrl: integration.storeUrl,
+    username: integration.wpUsername,
+    applicationPassword: decrypt(integration.wpApplicationPasswordEncrypted),
+  };
+}
+
+function wordpressError(error: unknown): never {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    if (status === 401 || status === 403) throw new AppError(400, "WordPress rejected this Application Password or the account cannot install plugins. Use an Administrator account and a fresh Application Password.");
+    if (status === 404) throw new AppError(400, "WordPress plugin management API was not found. Check that this is a WordPress site and REST API access is enabled.");
+    if (status === 409) throw new AppError(409, "WordPress could not install this plugin because of a conflict. Check the WordPress Plugins page.");
+    if (status === 429) throw new AppError(429, "WordPress is temporarily rate limiting requests. Try again shortly.");
+    if (!status) throw new AppError(502, "Could not reach the WordPress store. Check its URL and availability.");
+    throw new AppError(502, `WordPress returned an error (HTTP ${status}).`);
+  }
+  throw error;
+}
+
+async function listRecommendedPlugins(organizationId: string) {
+  const client = await wordpressClient(await getWordPressAccess(organizationId));
+  try {
+    const { data } = await client.get("plugins", { params: { per_page: 100 } });
+    const installed = Array.isArray(data) ? data : [];
+    return recommendedPlugins.map((plugin) => {
+      const found = installed.find((item: any) => typeof item.plugin === "string" && item.plugin.split("/")[0] === plugin.slug);
+      return { ...plugin, installed: Boolean(found), active: found?.status === "active", version: typeof found?.version === "string" ? found.version : null };
+    });
+  } catch (error) { wordpressError(error); }
+}
+
 async function getCredentials(organizationId: string): Promise<WooCredentials> {
   const integration = await prisma.wooCommerceIntegration.findUnique({ where: { organizationId } });
   if (!integration) throw new AppError(404, "WooCommerce is not connected");
@@ -112,9 +170,44 @@ function externalError(error: unknown): never {
 export async function getStatus(organizationId: string) {
   const integration = await prisma.wooCommerceIntegration.findUnique({
     where: { organizationId },
-    select: { storeUrl: true, lastSyncAt: true, updatedAt: true },
+    select: { storeUrl: true, lastSyncAt: true, updatedAt: true, wpUsername: true, wpApplicationPasswordEncrypted: true },
   });
-  return integration ? { connected: true, ...integration } : { connected: false };
+  return integration ? { connected: true, storeUrl: integration.storeUrl, lastSyncAt: integration.lastSyncAt, updatedAt: integration.updatedAt, wpPluginAccessConfigured: Boolean(integration.wpUsername && integration.wpApplicationPasswordEncrypted) } : { connected: false };
+}
+
+export async function saveWordPressAccess(organizationId: string, username: string, applicationPassword: string) {
+  const integration = await prisma.wooCommerceIntegration.findUnique({ where: { organizationId }, select: { storeUrl: true } });
+  if (!integration) throw new AppError(404, "Connect WooCommerce before adding WordPress access");
+  const access = { storeUrl: integration.storeUrl, username, applicationPassword };
+  try {
+    await (await wordpressClient(access)).get("plugins");
+  } catch (error) { wordpressError(error); }
+  await prisma.wooCommerceIntegration.update({
+    where: { organizationId },
+    data: { wpUsername: username, wpApplicationPasswordEncrypted: encrypt(applicationPassword) },
+  });
+  return { configured: true };
+}
+
+export async function getRecommendedPlugins(organizationId: string) {
+  return { plugins: await listRecommendedPlugins(organizationId) };
+}
+
+export async function installRecommendedPlugin(organizationId: string, slug: string) {
+  const plugin = recommendedPlugins.find((item) => item.slug === slug);
+  if (!plugin) throw badRequest("This plugin is not on the approved installer list");
+  const client = await wordpressClient(await getWordPressAccess(organizationId));
+  try {
+    const { data: current } = await client.get("plugins", { params: { per_page: 100 } });
+    const existing = Array.isArray(current) ? current.find((item: any) => typeof item.plugin === "string" && item.plugin.split("/")[0] === plugin.slug) : undefined;
+    if (existing?.status === "active") return { slug: plugin.slug, status: "active" };
+    if (existing?.plugin) {
+      await client.post(`plugins/${encodeURIComponent(existing.plugin)}`, { status: "active" });
+    } else {
+      await client.post("plugins", { slug: plugin.slug, status: "active" });
+    }
+    return { slug: plugin.slug, status: "active" };
+  } catch (error) { wordpressError(error); }
 }
 
 export async function connect(organizationId: string, input: WooCredentials) {
@@ -122,6 +215,7 @@ export async function connect(organizationId: string, input: WooCredentials) {
   try {
     await (await clientFor(credentials)).get("products", { params: { per_page: 1 } });
   } catch (error) { externalError(error); }
+  const previous = await prisma.wooCommerceIntegration.findUnique({ where: { organizationId }, select: { storeUrl: true } });
   const integration = await prisma.wooCommerceIntegration.upsert({
     where: { organizationId },
     create: {
@@ -129,11 +223,14 @@ export async function connect(organizationId: string, input: WooCredentials) {
       storeUrl: credentials.storeUrl,
       consumerKeyEncrypted: encrypt(credentials.consumerKey),
       consumerSecretEncrypted: encrypt(credentials.consumerSecret),
+      wpUsername: null,
+      wpApplicationPasswordEncrypted: null,
     },
     update: {
       storeUrl: credentials.storeUrl,
       consumerKeyEncrypted: encrypt(credentials.consumerKey),
       consumerSecretEncrypted: encrypt(credentials.consumerSecret),
+      ...(previous?.storeUrl === credentials.storeUrl ? {} : { wpUsername: null, wpApplicationPasswordEncrypted: null }),
     },
     select: { storeUrl: true, lastSyncAt: true, updatedAt: true },
   });
