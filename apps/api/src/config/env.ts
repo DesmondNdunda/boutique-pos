@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { createHash } from "node:crypto";
 
 function get(key: string, fallback?: string): string {
   return process.env[key] ?? fallback ?? "";
@@ -36,6 +37,12 @@ export const env = {
 };
 
 export const isProd = env.nodeEnv === "production";
+
+// Derive a purpose-specific integration key from the already-required,
+// high-entropy production secret. Never store WooCommerce API keys in clear text.
+export const integrationEncryptionKey = createHash("sha256")
+  .update(`boutique-pos:integrations:v1:${env.sessionSecret}`)
+  .digest();
 
 if (isProd && (!process.env.SESSION_SECRET || env.sessionSecret === "dev-secret-change-me" || env.sessionSecret.length < 32)) {
   throw new Error("SESSION_SECRET must be configured with at least 32 characters in production");

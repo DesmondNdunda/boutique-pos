@@ -11,6 +11,7 @@ import { Sell } from "./pages/Sell";
 import { Team } from "./pages/Team";
 import { Reports } from "./pages/Reports";
 import { Billing } from "./pages/Billing";
+import { Plugins } from "./pages/Plugins";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -22,6 +23,12 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 function RequireOwnerOrManager({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
   if (user?.role !== "OWNER" && user?.role !== "MANAGER") return <Navigate to="/" replace />;
+  return children;
+}
+
+function RequireOwner({ children }: { children: JSX.Element }) {
+  const { user } = useAuth();
+  if (user?.role !== "OWNER") return <Navigate to="/" replace />;
   return children;
 }
 
@@ -48,6 +55,7 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/reports" element={<RequireOwnerOrManager><Reports /></RequireOwnerOrManager>} />
         <Route path="/billing" element={<RequireOwnerOrManager><Billing /></RequireOwnerOrManager>} />
+        <Route path="/plugins" element={<RequireOwner><Plugins /></RequireOwner>} />
         <Route
           path="/inventory"
           element={

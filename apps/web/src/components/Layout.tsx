@@ -13,6 +13,7 @@ const ownerLinks = [
   { to: "/team", label: "Team", icon: "👥" },
   { to: "/reports", label: "Reports", icon: "📈" },
   { to: "/billing", label: "Billing", icon: "💳" },
+  { to: "/plugins", label: "Plugins", icon: "🔌" },
 ];
 
 const employeeLinks = [
@@ -35,7 +36,7 @@ export function Layout() {
     queryFn: async () => (await api.get("/branches")).data.branches,
     enabled: user?.role === "OWNER" || user?.role === "MANAGER",
   });
-  const links = user?.role === "EMPLOYEE" ? employeeLinks : ownerLinks;
+  const links = user?.role === "EMPLOYEE" ? employeeLinks : ownerLinks.filter((link) => link.to !== "/plugins" || user?.role === "OWNER");
 
   async function createBranch(e: React.FormEvent) {
     e.preventDefault(); setBranchError(""); setSavingBranch(true);
@@ -106,7 +107,7 @@ export function Layout() {
 
       {/* Mobile bottom nav */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-1"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around overflow-x-auto py-1"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0.25rem)" }}
       >
         {links.map((l) => (
@@ -115,7 +116,7 @@ export function Layout() {
             to={l.to}
             end={l.to === "/"}
             className={({ isActive }) =>
-              `flex flex-col items-center py-1 px-2 text-xs ${isActive ? "text-brand font-medium" : "text-slate-500"}`
+              `flex shrink-0 flex-col items-center py-1 px-2 text-xs ${isActive ? "text-brand font-medium" : "text-slate-500"}`
             }
           >
             <span className="text-lg">{l.icon}</span>

@@ -44,6 +44,7 @@ model Organization {
   sales         Sale[]
   auditLogs     AuditLog[]
   stockMovements StockMovement[]
+  wooCommerceIntegration WooCommerceIntegration?
 
   @@map("organizations")
 }
@@ -137,6 +138,7 @@ model Product {
   imageUrl       String?
   hasVariants    Boolean  @default(true)
   isArchived     Boolean  @default(false)
+  wooCommerceId  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -145,6 +147,7 @@ model Product {
   variants     ProductVariant[]
 
   @@index([organizationId])
+  @@unique([organizationId, wooCommerceId])
   @@map("products")
 }
 
@@ -158,6 +161,7 @@ model ProductVariant {
   sku       String?  // optional, auto-generated if not supplied
   price     Decimal? @db.Decimal(12, 2) // overrides Product.basePrice if set
   createdAt DateTime @default(now())
+  wooCommerceVariationId String?
 
   product        Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventory      Inventory[]
@@ -165,6 +169,7 @@ model ProductVariant {
   stockMovements StockMovement[]
 
   @@unique([productId, size, color])
+  @@unique([productId, wooCommerceVariationId])
   @@map("product_variants")
 }
 
@@ -249,6 +254,7 @@ model Sale {
   status         SaleStatus @default(PENDING_PAYMENT)
   subtotal       Decimal    @db.Decimal(12, 2)
   total          Decimal    @db.Decimal(12, 2)
+  externalOrderId String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -259,7 +265,23 @@ model Sale {
   payments     Payment[]
 
   @@index([organizationId, branchId])
+  @@unique([organizationId, externalOrderId])
   @@map("sales")
+}
+
+model WooCommerceIntegration {
+  id                   String   @id @default(cuid())
+  organizationId       String   @unique
+  storeUrl              String
+  consumerKeyEncrypted String
+  consumerSecretEncrypted String
+  lastSyncAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("woocommerce_integrations")
 }
 
 model SaleItem {

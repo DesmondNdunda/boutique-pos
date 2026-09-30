@@ -141,9 +141,15 @@ both support "deploy on push" without needing custom Actions).
 
 ## 6. What's implemented
 
-**Working now:** tenant-scoped accounts and data, 14-day trials with read-only access after expiry, Owner/Manager/Employee roles, branch switching, products with variants and photo uploads, audited restocking and branch transfers, checkout for cash/card/M-Pesa, dashboard, date-filtered sales reports with CSV export, team management, Stripe subscriptions and billing portal, PWA installability, and responsive layouts.
+**Working now:** tenant-scoped accounts and data, 14-day trials with read-only access after expiry, Owner/Manager/Employee roles, branch switching, products with variants and photo uploads, audited restocking and branch transfers, checkout for cash/card/M-Pesa, dashboard, date-filtered sales reports with CSV export, team management, Stripe subscriptions and billing portal, WooCommerce product/order import and payment method controls, PWA installability, and responsive layouts.
 
 Stripe checkout and subscription updates require the webhook to be reachable from Stripe. The webhook verifies Stripe signatures before changing plan records. Plan prices and billing intervals come from recurring Stripe prices you configure; the app does not hard-code pricing.
+
+### WooCommerce
+
+An Owner can connect WooCommerce from **Plugins** using a WooCommerce REST API key with Read/Write access. The key pair is encrypted in the database using a key derived from `SESSION_SECRET`, so keep that production secret stable; after rotating it, reconnect WooCommerce. Install and configure payment gateway extensions in WordPress first, then use the POS to enable or disable those checkout methods. Manual sync imports published products and paid orders into the POS main branch. The initial import does not re-deduct inventory for historical orders; later imported online orders update POS stock. POS sales are not exported back to WooCommerce.
+
+The API start command runs `prisma migrate deploy` before starting the server, so production deployments apply checked-in database migrations before serving requests.
 
 ## 7. Local development notes
 

@@ -16,6 +16,7 @@ import { paymentsRouter, paymentAdminRouter } from "./modules/payments/payments.
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { branchesRouter, orgRouter } from "./modules/organizations/branches.routes";
 import { billingRouter, handleStripeWebhook } from "./modules/billing/billing.routes";
+import { wooCommerceRouter } from "./modules/integrations/woocommerce.routes";
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use("/api/sales", salesRouter);
 app.use("/api/payments", paymentAdminRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/integrations/woocommerce", wooCommerceRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
