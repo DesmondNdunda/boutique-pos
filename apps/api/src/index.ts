@@ -19,6 +19,13 @@ import { billingRouter, handleStripeWebhook } from "./modules/billing/billing.ro
 
 const app = express();
 
+if (env.nodeEnv === "production") {
+  app.set("trust proxy", 1);
+  app.use((req, res, next) => {
+    if (req.secure || req.header("x-forwarded-proto") === "https") return next();
+    res.redirect(308, `${env.apiBaseUrl.replace(/^http:/, "https:").replace(/\/$/, "")}${req.originalUrl}`);
+  });
+}
 app.use(helmet());
 app.use(cors({ origin: env.webBaseUrl, credentials: true }));
 app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));

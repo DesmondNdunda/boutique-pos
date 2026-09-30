@@ -47,6 +47,6 @@ salesRouter.get(
   "/:id/status",
   asyncHandler(async (req, res) => {
     const sale = await SalesService.getSale(req.auth!.organizationId, req.params.id, branchForRequest(req));
-    res.json({ status: sale.status, payments: sale.payments });
+    res.json({ status: sale.status, payments: sale.payments.map(({ id, method, status, amount, mpesaReceiptNumber, createdAt }) => ({ id, method, status, amount, mpesaReceiptNumber, createdAt })) });
   })
 );

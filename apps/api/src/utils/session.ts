@@ -18,7 +18,9 @@ function unsign(signed: string): string | null {
   if (idx === -1) return null;
   const value = signed.slice(0, idx);
   const expected = sign(value);
-  return expected === signed ? value : null;
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(signed);
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer) ? value : null;
 }
 
 export function newSessionId(): string {
@@ -32,7 +34,7 @@ export function sessionExpiry(): Date {
 export function setSessionCookie(res: Response, sessionId: string) {
   res.cookie(COOKIE_NAME, sign(sessionId), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.nodeEnv === "production",
     sameSite: "lax",
     domain: env.cookieDomain || undefined,
     maxAge: SESSION_TTL_MS,

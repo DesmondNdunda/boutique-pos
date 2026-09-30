@@ -19,6 +19,8 @@ export async function checkout(
     phoneNumber?: string;
   }
 ) {
+  const branch = await prisma.branch.findFirst({ where: { id: branchId, organizationId }, select: { id: true } });
+  if (!branch) throw notFound("Branch not found");
   if (input.paymentMethod === "MPESA" && !input.phoneNumber) {
     throw badRequest("Phone number is required for M-Pesa payments");
   }
@@ -171,7 +173,7 @@ export async function confirmMpesaPayment(parsed: ReturnType<typeof Mpesa.parseC
 export async function getSale(organizationId: string, saleId: string, branchId?: string) {
   const sale = await prisma.sale.findFirst({
     where: { id: saleId, organizationId, branchId },
-    include: { items: { include: { variant: { include: { product: true } } } }, payments: true, user: true },
+    include: { items: { include: { variant: { include: { product: true } } } }, payments: { select: { id: true, method: true, status: true, amount: true, mpesaReceiptNumber: true, createdAt: true } }, user: true },
   });
   if (!sale) throw notFound("Sale not found");
   return sale;
@@ -184,7 +186,7 @@ export async function listSales(organizationId: string, opts: { branchId?: strin
       branchId: opts.branchId,
       createdAt: opts.from || opts.to ? { gte: opts.from, lte: opts.to } : undefined,
     },
-    include: { items: true, payments: true, user: { select: { name: true } } },
+    include: { items: true, payments: { select: { id: true, method: true, status: true, amount: true, mpesaReceiptNumber: true, createdAt: true } }, user: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 100,
   });

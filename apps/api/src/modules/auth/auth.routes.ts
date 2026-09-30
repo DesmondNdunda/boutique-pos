@@ -7,6 +7,7 @@ import { setSessionCookie, clearSessionCookie, COOKIE_NAME, readSessionId } from
 import { registerOrgSchema, loginSchema, inviteUserSchema } from "./auth.schemas";
 import * as AuthService from "./auth.service";
 import { requireCurrentSubscription } from "../../middleware/subscription";
+import { loginRateLimit } from "../../middleware/loginRateLimit";
 
 export const authRouter = Router();
 
@@ -25,6 +26,7 @@ authRouter.post(
 // POST /api/auth/login
 authRouter.post(
   "/login",
+  loginRateLimit,
   asyncHandler(async (req, res) => {
     const input = loginSchema.parse(req.body);
     const { user, sessionId } = await AuthService.login(input.identifier, input.password);

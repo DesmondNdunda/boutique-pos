@@ -11,5 +11,5 @@ export const checkoutSchema = z.object({
     )
     .min(1),
   paymentMethod: z.enum(["CASH", "MPESA", "CARD"]),
-  phoneNumber: z.string().min(9).optional(), // required if MPESA
+  phoneNumber: z.string().trim().min(9).max(20).optional(), // required if MPESA
 });

@@ -9,3 +9,42 @@
 body {
   -webkit-tap-highlight-color: transparent;
 }
+
+button, a, input, select, textarea {
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+button:not(:disabled):hover { filter: brightness(0.96); }
+button:not(:disabled):active { transform: translateY(1px); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 650ms linear infinite;
+  vertical-align: -0.15em;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff !important; color: #000 !important; }
+  nav, aside, header, button, input, select, textarea, .no-print { display: none !important; }
+  main, [role="main"] { width: 100% !important; max-width: none !important; padding: 0 !important; overflow: visible !important; }
+  table { width: 100%; border-collapse: collapse; }
+  tr { break-inside: avoid; }
+  th, td { border: 1px solid #999 !important; padding: 6px !important; color: #000 !important; }
+  * { box-shadow: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

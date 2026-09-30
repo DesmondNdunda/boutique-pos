@@ -53,7 +53,7 @@ export function Login() {
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button disabled={loading} className="w-full bg-brand text-white rounded-md py-2 text-sm font-medium disabled:opacity-50">
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? <><span className="loading-spinner mr-2" aria-hidden="true" />Signing in...</> : "Sign in"}
         </button>
         <p className="text-center text-sm text-slate-500">
           New here? <Link to="/register" className="text-brand font-medium">Create your store</Link>

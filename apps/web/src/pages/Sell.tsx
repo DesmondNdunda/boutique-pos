@@ -125,6 +125,7 @@ function Checkout({ cart, branchId, total, onDone, onBack }: { cart: CartItem[];
   const [saleId, setSaleId] = useState<string | null>(null);
   const [pollingStatus, setPollingStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSale, setConfirmSale] = useState(false);
 
   const checkout = useMutation({
     mutationFn: async () => {
@@ -219,12 +220,13 @@ function Checkout({ cart, branchId, total, onDone, onBack }: { cart: CartItem[];
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
-        onClick={() => checkout.mutate()}
+        onClick={() => method === "MPESA" ? checkout.mutate() : setConfirmSale(true)}
         disabled={checkout.isPending || (method === "MPESA" && !phone)}
         className="w-full bg-brand text-white rounded-md py-3 text-sm font-semibold disabled:opacity-50"
       >
         {checkout.isPending ? "Processing..." : method === "MPESA" ? "Send STK Push" : "Complete Sale"}
       </button>
+      {confirmSale && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" role="presentation"><div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="sale-confirm-title"><h2 id="sale-confirm-title" className="font-semibold">Complete this sale?</h2><p className="text-sm text-slate-600">Charge KSh {total.toLocaleString()} by {method.toLowerCase()} and update stock.</p><div className="flex gap-2"><button onClick={() => setConfirmSale(false)} className="flex-1 rounded-md border py-2 text-sm">Go back</button><button onClick={() => { setConfirmSale(false); checkout.mutate(); }} className="flex-1 rounded-md bg-brand py-2 text-sm text-white">Confirm sale</button></div></div></div>}
     </div>
   );
 }

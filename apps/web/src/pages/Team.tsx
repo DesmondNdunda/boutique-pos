@@ -7,6 +7,7 @@ export function Team() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "EMPLOYEE" as "EMPLOYEE" | "MANAGER" });
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const { data: users } = useQuery({
     queryKey: ["users"],
@@ -15,7 +16,7 @@ export function Team() {
 
   const invite = useMutation({
     mutationFn: async () => (await api.post("/auth/users", form)).data,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setShowForm(false); setForm({ name: "", email: "", password: "", role: "EMPLOYEE" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setShowForm(false); setForm({ name: "", email: "", password: "", role: "EMPLOYEE" }); setError(null); setSuccess("Staff member added successfully."); },
     onError: (e: any) => setError(e.message),
   });
 
@@ -25,6 +26,7 @@ export function Team() {
         <h1 className="text-lg font-semibold">Team</h1>
         <button onClick={() => setShowForm(true)} className="bg-brand text-white text-sm rounded-md px-3 py-2">+ Add Staff</button>
       </div>
+      {success && <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{success}<button className="ml-3" onClick={() => setSuccess(null)} aria-label="Dismiss">×</button></p>}
 
       <div className="space-y-2">
         {users?.map((u: any) => (

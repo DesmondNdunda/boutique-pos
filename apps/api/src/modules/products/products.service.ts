@@ -21,6 +21,7 @@ export async function createProductWithActor(
     variants: { size?: string | null; color?: string | null; price?: number; initialStock: number }[];
   }
 ) {
+  await assertProductReferences(organizationId, input.branchId, input.categoryId);
   return prisma.product.create({
     data: {
       organizationId,
@@ -88,6 +89,10 @@ export async function getProduct(organizationId: string, productId: string) {
 
 export async function updateProduct(organizationId: string, productId: string, data: Record<string, any>) {
   await getProduct(organizationId, productId);
+  if (data.categoryId) {
+    const category = await prisma.category.findFirst({ where: { id: data.categoryId, organizationId }, select: { id: true } });
+    if (!category) throw notFound("Category not found");
+  }
   return prisma.product.update({ where: { id: productId }, data });
 }
 
@@ -98,6 +103,7 @@ export async function addVariant(
   input: { size?: string | null; color?: string | null; price?: number; initialStock: number; branchId: string }
 ) {
   await getProduct(organizationId, productId);
+  await assertProductReferences(organizationId, input.branchId);
   return prisma.$transaction(async (tx) => {
     const variant = await tx.productVariant.create({
       data: { productId, size: input.size ?? null, color: input.color ?? null, price: input.price },
@@ -122,6 +128,15 @@ export async function addVariant(
     }
     return variant;
   });
+}
+
+async function assertProductReferences(organizationId: string, branchId: string, categoryId?: string | null) {
+  const branch = await prisma.branch.findFirst({ where: { id: branchId, organizationId }, select: { id: true } });
+  if (!branch) throw notFound("Branch not found");
+  if (categoryId) {
+    const category = await prisma.category.findFirst({ where: { id: categoryId, organizationId }, select: { id: true } });
+    if (!category) throw notFound("Category not found");
+  }
 }
 
 export async function listCategories(organizationId: string) {
