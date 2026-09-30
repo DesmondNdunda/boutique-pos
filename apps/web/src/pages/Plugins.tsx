@@ -5,6 +5,17 @@ import { useAuth } from "../store/auth";
 
 type Gateway = { id: string; title: string; description: string; enabled: boolean; methodTitle: string };
 
+function wordpressPluginUploadUrl(storeUrl: string) {
+  try {
+    const url = new URL(storeUrl);
+    if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return undefined;
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/wp-admin/plugin-install.php`;
+    url.search = "?tab=upload";
+    url.hash = "";
+    return url.toString();
+  } catch { return undefined; }
+}
+
 export function Plugins() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -18,6 +29,8 @@ export function Plugins() {
     queryFn: async () => (await api.get("/integrations/woocommerce")).data,
   });
   const connected = Boolean(connection.data?.connected);
+  const wordpressUrl = connected ? connection.data.storeUrl : storeUrl;
+  const pluginUploadUrl = wordpressPluginUploadUrl(wordpressUrl);
   const gateways = useQuery({
     queryKey: ["woocommerce-gateways"],
     queryFn: async () => (await api.get("/integrations/woocommerce/gateways")).data.gateways as Gateway[],
@@ -63,6 +76,17 @@ export function Plugins() {
       {connection.isLoading && <p className="rounded-lg border bg-white p-4 text-sm text-slate-500">Checking your connected store…</p>}
       {connection.error && <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{connection.error instanceof Error ? connection.error.message : "Could not load integrations."}</p>}
 
+      <section className="rounded-xl border bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div><h2 className="font-semibold">Add a WordPress plugin</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Upload the Pesapal ZIP you downloaded, then install and activate it in WordPress. You need a WordPress administrator account.</p></div>
+          {pluginUploadUrl
+            ? <a href={pluginUploadUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90">＋ Add plugin</a>
+            : <button type="button" disabled className="shrink-0 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white opacity-50">＋ Add plugin</button>}
+        </div>
+        {!pluginUploadUrl && <p className="mt-3 text-xs text-slate-500">Enter your WordPress store URL in the WooCommerce connection form below to enable this button.</p>}
+        {pluginUploadUrl && <p className="mt-3 text-xs text-slate-500">The button opens WordPress → Plugins → Add New → Upload Plugin. Choose the Pesapal ZIP, select Install, then Activate.</p>}
+      </section>
+
       {!connected && !connection.isLoading && (
         <section className="rounded-xl border bg-white p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
@@ -96,13 +120,7 @@ export function Plugins() {
           </section>
 
           <section className="rounded-xl border bg-white p-5">
-            <h2 className="font-semibold">Add a WordPress payment plugin</h2>
-            <p className="mt-1 text-sm text-slate-500">Payment plugins are installed in your WordPress dashboard. After installation and setup, their checkout method appears in the list below.</p>
-            <a href={`${connection.data.storeUrl}/wp-admin/plugin-install.php`} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-md border px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Open WordPress plugin installer ↗</a>
-          </section>
-
-          <section className="rounded-xl border bg-white p-5">
-            <div className="mb-4"><h2 className="font-semibold">WordPress payment methods</h2><p className="mt-1 text-sm text-slate-500">Install and configure payment plugins in WordPress first. Then enable the checkout methods you want below.</p></div>
+            <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">WordPress payment methods</h2><p className="mt-1 text-sm text-slate-500">Install and configure payment plugins in WordPress first. Then enable the checkout methods you want below.</p></div><button type="button" onClick={() => gateways.refetch()} disabled={gateways.isFetching} className="shrink-0 rounded-md border px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-50">{gateways.isFetching ? "Refreshing…" : "Refresh methods"}</button></div>
             {gateways.isLoading && <p className="text-sm text-slate-500">Loading installed payment methods…</p>}
             {gateways.error && <p className="text-sm text-red-600">{gateways.error instanceof Error ? gateways.error.message : "Could not load payment methods."}</p>}
             {gateways.data?.length === 0 && <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">No payment methods were returned by WooCommerce. Install a WooCommerce payment gateway plugin in WordPress, then refresh this section.</p>}
