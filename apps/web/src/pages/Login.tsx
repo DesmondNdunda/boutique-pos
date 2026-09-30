@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../store/auth";
+import { InstallAppButton } from "../components/InstallAppButton";
 
 export function Login() {
   const { login } = useAuth();
@@ -31,6 +32,7 @@ export function Login() {
         <div className="flex flex-col items-center gap-2">
           <img src="/ashler-trends-logo.jpeg" alt="Ashler Trends logo" className="h-28 w-28 rounded-full object-cover" />
           <h1 className="text-xl font-semibold text-center">Ashler Trends</h1>
+          <InstallAppButton variant="light" />
         </div>
         <div>
           <label className="text-sm text-slate-600">Email or name</label>

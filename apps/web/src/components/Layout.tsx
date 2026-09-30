@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { InstallAppButton } from "./InstallAppButton";
 
 const ownerLinks = [
   { to: "/", label: "Dashboard", icon: "📊" },
@@ -73,6 +74,7 @@ export function Layout() {
         <div className="text-xs text-slate-300 mb-2">
           {user?.name} · {user?.role}
         </div>
+        <div className="mb-2"><InstallAppButton /></div>
         <button
           onClick={async () => {
             await logout();
@@ -85,10 +87,10 @@ export function Layout() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="md:hidden flex items-center justify-between bg-brand text-white px-4 py-3 sticky top-0 z-10"
+      <header className="md:hidden flex items-center justify-between gap-2 bg-brand text-white px-4 py-3 sticky top-0 z-10"
         style={{ paddingTop: "env(safe-area-inset-top, 0.75rem)" }}>
         <div className="font-semibold">Ashler Trends</div>
-        <button
+        <div className="flex items-center gap-2"><InstallAppButton /><button
           onClick={async () => {
             await logout();
             navigate("/login");
@@ -96,7 +98,7 @@ export function Layout() {
           className="text-xs opacity-80"
         >
           Log out
-        </button>
+        </button></div>
       </header>
 
       <main className="flex-1 p-4 pb-20 md:pb-4 max-w-5xl w-full mx-auto">

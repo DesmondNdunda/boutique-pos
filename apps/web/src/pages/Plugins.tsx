@@ -28,6 +28,8 @@ export function Plugins() {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [wpAccessEditing, setWpAccessEditing] = useState(false);
   const [pluginToInstall, setPluginToInstall] = useState<RecommendedPlugin | null>(null);
+  const [pluginFile, setPluginFile] = useState<File | null>(null);
+  const [fileInstallOpen, setFileInstallOpen] = useState(false);
 
   const connection = useQuery({
     queryKey: ["woocommerce-connection"],
@@ -45,6 +47,12 @@ export function Plugins() {
     queryKey: ["wordpress-recommended-plugins"],
     queryFn: async () => (await api.get("/integrations/woocommerce/wordpress-plugins")).data.plugins as RecommendedPlugin[],
     enabled: connected && connection.data?.wpPluginAccessConfigured === true && user?.role === "OWNER",
+  });
+  const fileInstaller = useQuery({
+    queryKey: ["wordpress-file-installer"],
+    queryFn: async () => (await api.get("/integrations/woocommerce/wordpress-file-installer")).data as { ready: boolean; version: string | null },
+    enabled: connected && connection.data?.wpPluginAccessConfigured === true && user?.role === "OWNER",
+    retry: false,
   });
 
   const connect = useMutation({
@@ -87,6 +95,19 @@ export function Plugins() {
     onSuccess: async () => {
       setPluginToInstall(null);
       await queryClient.invalidateQueries({ queryKey: ["wordpress-recommended-plugins"] });
+    },
+  });
+  const uploadPlugin = useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("pluginZip", file, file.name);
+      return (await api.post("/integrations/woocommerce/wordpress-plugins/upload", body)).data.plugin as { name: string; version: string | null; status: string };
+    },
+    onSuccess: async () => {
+      setFileInstallOpen(false);
+      setPluginFile(null);
+      await queryClient.invalidateQueries({ queryKey: ["wordpress-recommended-plugins"] });
+      await queryClient.invalidateQueries({ queryKey: ["woocommerce-gateways"] });
     },
   });
 
@@ -138,6 +159,33 @@ export function Plugins() {
 
       {connected && (
         <>
+          <section className="rounded-xl border bg-white p-5">
+            <div><h2 className="font-semibold">Install a plugin from your files</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">Choose a plugin ZIP on this device and send it directly to your connected WordPress site. ZIP files up to 20 MB are supported.</p></div>
+            {!connection.data.wpPluginAccessConfigured ? (
+              <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">Connect your WordPress Administrator Application Password in the Recommended WordPress plugins section below to enable local file installs.</p>
+            ) : (
+              <>
+                {fileInstaller.isLoading && <p className="mt-4 text-sm text-slate-500">Checking the WordPress upload helper…</p>}
+                {!fileInstaller.data?.ready && <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+                  <p className="font-medium">One-time setup: install the Ashler POS upload helper on WordPress.</p>
+                  <ol className="mt-2 list-inside list-decimal space-y-1">
+                    <li>Download the helper ZIP below.</li>
+                    <li>Open WordPress → Plugins → Add New → Upload Plugin, choose the helper ZIP, then install and activate it.</li>
+                    <li>Return here and refresh this page. You can then upload your Pesapal ZIP from this POS.</li>
+                  </ol>
+                  <div className="mt-3 flex flex-wrap gap-2"><a href="/ashler-pos-file-installer.zip" download className="rounded-md bg-amber-900 px-3 py-2 text-xs font-semibold text-white">Download upload helper</a>{pluginUploadUrl && <a href={pluginUploadUrl} target="_blank" rel="noreferrer" className="rounded-md border border-amber-900/30 px-3 py-2 text-xs font-semibold text-amber-950">Open WordPress upload page</a>}</div>
+                  {fileInstaller.error && <p className="mt-3 text-xs">{fileInstaller.error instanceof Error ? fileInstaller.error.message : "WordPress has not confirmed the upload helper yet."}</p>}
+                </div>}
+                {fileInstaller.data?.ready && <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); if (pluginFile) setFileInstallOpen(true); }}>
+                  <label className="min-w-64 flex-1 text-sm text-slate-600">Plugin ZIP file<input type="file" required accept=".zip,application/zip,application/x-zip-compressed" onChange={(event) => setPluginFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-900 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5" /></label>
+                  <button disabled={!pluginFile || uploadPlugin.isPending} className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{uploadPlugin.isPending ? "Installing plugin…" : "Upload and install"}</button>
+                </form>}
+                {uploadPlugin.error && <p role="alert" className="mt-3 text-sm text-red-600">{uploadPlugin.error instanceof Error ? uploadPlugin.error.message : "WordPress could not install this plugin ZIP."}</p>}
+                {uploadPlugin.data && <p role="status" className="mt-3 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{uploadPlugin.data.name}{uploadPlugin.data.version ? ` ${uploadPlugin.data.version}` : ""} installed and activated.</p>}
+              </>
+            )}
+          </section>
+
           <section className="rounded-xl border bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><h2 className="font-semibold">Recommended WordPress plugins</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">Install selected plugins directly from the WordPress plugin directory. Each install also activates the plugin on your live store.</p></div>
@@ -200,6 +248,7 @@ export function Plugins() {
 
       {disconnectOpen && <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"><div role="dialog" aria-modal="true" aria-labelledby="disconnect-title" className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl"><h2 id="disconnect-title" className="font-semibold">Disconnect WooCommerce?</h2><p className="text-sm text-slate-600">This removes the saved API connection. Imported products and sales stay in the POS. For best security, also revoke this API key in WooCommerce.</p>{disconnect.error && <p className="text-sm text-red-600">{errorText}</p>}<div className="flex gap-2"><button onClick={() => setDisconnectOpen(false)} className="flex-1 rounded-md border py-2 text-sm">Cancel</button><button onClick={() => disconnect.mutate()} disabled={disconnect.isPending} className="flex-1 rounded-md bg-red-600 py-2 text-sm text-white disabled:opacity-50">{disconnect.isPending ? "Disconnecting…" : "Disconnect"}</button></div></div></div>}
       {pluginToInstall && <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"><div role="dialog" aria-modal="true" aria-labelledby="plugin-install-title" className="w-full max-w-md space-y-4 rounded-xl bg-white p-5 shadow-xl"><h2 id="plugin-install-title" className="font-semibold">{pluginToInstall.installed ? "Activate" : "Install and activate"} {pluginToInstall.name}?</h2><p className="text-sm text-slate-600">This changes your live WordPress store. Make sure you have a recent backup before continuing. WordPress will download this plugin from its official plugin directory.</p><div className="flex gap-2"><button onClick={() => setPluginToInstall(null)} className="flex-1 rounded-md border py-2 text-sm">Cancel</button><button onClick={() => installPlugin.mutate(pluginToInstall)} disabled={installPlugin.isPending} className="flex-1 rounded-md bg-brand py-2 text-sm font-semibold text-white disabled:opacity-50">{installPlugin.isPending ? "Working…" : "Confirm"}</button></div></div></div>}
+      {fileInstallOpen && pluginFile && <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"><div role="dialog" aria-modal="true" aria-labelledby="file-plugin-install-title" className="w-full max-w-md space-y-4 rounded-xl bg-white p-5 shadow-xl"><h2 id="file-plugin-install-title" className="font-semibold">Install {pluginFile.name}?</h2><p className="text-sm text-slate-600">This uploads the ZIP to your live WordPress site and activates its code. Only continue if you trust where this plugin came from. Make sure you have a recent backup.</p><div className="flex gap-2"><button onClick={() => setFileInstallOpen(false)} className="flex-1 rounded-md border py-2 text-sm">Cancel</button><button onClick={() => uploadPlugin.mutate(pluginFile)} disabled={uploadPlugin.isPending} className="flex-1 rounded-md bg-brand py-2 text-sm font-semibold text-white disabled:opacity-50">{uploadPlugin.isPending ? "Installing…" : "Confirm install"}</button></div></div></div>}
     </div>
   );
 }

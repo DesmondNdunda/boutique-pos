@@ -95,8 +95,8 @@ const recommendedPlugins = [
   { slug: "wordpress-seo", name: "Yoast SEO", purpose: "Manage search previews, page metadata, and XML sitemaps." },
 ] as const;
 
-async function wordpressClient(access: WordPressAccess): Promise<AxiosInstance> {
-  const baseURL = `${await normalizeStoreUrl(access.storeUrl)}/wp-json/wp/v2`;
+async function wordpressClient(access: WordPressAccess, namespace = "wp/v2"): Promise<AxiosInstance> {
+  const baseURL = `${await normalizeStoreUrl(access.storeUrl)}/wp-json/${namespace}`;
   return axios.create({
     baseURL,
     auth: { username: access.username, password: access.applicationPassword },
@@ -123,11 +123,22 @@ async function getWordPressAccess(organizationId: string): Promise<WordPressAcce
 function wordpressError(error: unknown): never {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
+    const code = typeof error.response?.data?.code === "string" ? error.response.data.code : "";
+    const requestTarget = `${error.config?.baseURL ?? ""}/${error.config?.url ?? ""}`;
+    if (code === "rest_no_route" && requestTarget.includes("ashler-pos/v1")) {
+      throw new AppError(400, "Install the Ashler POS File Installer helper on WordPress first, then retry this upload.");
+    }
     if (status === 401 || status === 403) throw new AppError(400, "WordPress rejected this Application Password or the account cannot install plugins. Use an Administrator account and a fresh Application Password.");
     if (status === 404) throw new AppError(400, "WordPress plugin management API was not found. Check that this is a WordPress site and REST API access is enabled.");
     if (status === 409) throw new AppError(409, "WordPress could not install this plugin because of a conflict. Check the WordPress Plugins page.");
+    if (status === 413) throw new AppError(413, "WordPress hosting rejected this ZIP as too large. Try a smaller file or ask your host about PHP upload limits.");
     if (status === 429) throw new AppError(429, "WordPress is temporarily rate limiting requests. Try again shortly.");
     if (!status) throw new AppError(502, "Could not reach the WordPress store. Check its URL and availability.");
+    if (status === 400 && typeof error.response?.data?.message === "string") {
+      const message = error.response.data.message.replace(/<[^>]*>/g, " ").replace(/(?:[A-Za-z]:\\|\/(?:home|var|srv|app|opt|usr|tmp)\/)[^\s]*/gi, "[server path]").replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
+      if (message) throw new AppError(400, `WordPress could not install this plugin: ${message}`);
+    }
+    if (status >= 500) throw new AppError(502, "WordPress could not unpack or write the plugin files. Check available disk space, ZIP support, and WordPress filesystem permissions.");
     throw new AppError(502, `WordPress returned an error (HTTP ${status}).`);
   }
   throw error;
@@ -193,6 +204,14 @@ export async function getRecommendedPlugins(organizationId: string) {
   return { plugins: await listRecommendedPlugins(organizationId) };
 }
 
+export async function getFileInstallerStatus(organizationId: string) {
+  const client = await wordpressClient(await getWordPressAccess(organizationId), "ashler-pos/v1");
+  try {
+    const { data } = await client.get("ashler-pos/v1/status");
+    return { ready: data?.ready === true, version: typeof data?.version === "string" ? data.version : null };
+  } catch (error) { wordpressError(error); }
+}
+
 export async function installRecommendedPlugin(organizationId: string, slug: string) {
   const plugin = recommendedPlugins.find((item) => item.slug === slug);
   if (!plugin) throw badRequest("This plugin is not on the approved installer list");
@@ -207,6 +226,21 @@ export async function installRecommendedPlugin(organizationId: string, slug: str
       await client.post("plugins", { slug: plugin.slug, status: "active" });
     }
     return { slug: plugin.slug, status: "active" };
+  } catch (error) { wordpressError(error); }
+}
+
+export async function uploadPluginZip(organizationId: string, file: { buffer: Buffer; originalname: string }) {
+  if (!file.buffer.length || file.buffer.length > 20 * 1024 * 1024) throw badRequest("Choose a plugin ZIP smaller than 20 MB");
+  const signature = file.buffer.subarray(0, 4).toString("binary");
+  if (!["PK\x03\x04", "PK\x05\x06", "PK\x07\x08"].includes(signature)) throw badRequest("The selected file is not a valid ZIP archive");
+  const client = await wordpressClient(await getWordPressAccess(organizationId), "ashler-pos/v1");
+  try {
+    const form = new (globalThis as any).FormData();
+    const zip = new (globalThis as any).Blob([file.buffer], { type: "application/zip" });
+    form.append("pluginZip", zip, file.originalname);
+    const { data } = await client.post("ashler-pos/v1/install-plugin", form, { maxBodyLength: 22 * 1024 * 1024 });
+    if (data?.status !== "active" || typeof data?.name !== "string") throw new AppError(502, "WordPress received the ZIP but returned an unexpected installation result.");
+    return { plugin: { name: data.name.slice(0, 150), version: typeof data.version === "string" ? data.version.slice(0, 40) : null, status: "active" } };
   } catch (error) { wordpressError(error); }
 }
 
