@@ -1,4 +1,10 @@
 {
+  "headers": [
+    { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] },
+    { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] },
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] },
+    { "source": "/registerSW.js", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] }
+  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://boutique-posapi-production.up.railway.app/api/:path*" },
     { "source": "/uploads/:path*", "destination": "https://boutique-posapi-production.up.railway.app/uploads/:path*" },
