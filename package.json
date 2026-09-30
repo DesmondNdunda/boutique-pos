@@ -5,7 +5,7 @@
   "scripts": {
     "dev:api": "corepack pnpm --filter @boutique-pos/api dev",
     "dev:web": "corepack pnpm --filter @boutique-pos/web dev",
-    "build": "corepack pnpm -r build",
+    "build": "corepack pnpm --dir apps/api build && corepack pnpm --dir apps/web build",
     "prisma:generate": "corepack pnpm --filter @boutique-pos/api prisma:generate",
     "prisma:migrate": "corepack pnpm --filter @boutique-pos/api prisma:migrate",
     "prisma:studio": "corepack pnpm --filter @boutique-pos/api prisma:studio",
