@@ -16,8 +16,7 @@ authRouter.post(
   "/register",
   asyncHandler(async (req, res) => {
     const input = registerOrgSchema.parse(req.body);
-    const { org, user } = await AuthService.registerOrganization(input);
-    const { sessionId } = await AuthService.login(input.email, input.password);
+    const { user, sessionId } = await AuthService.registerOrganization(input);
     setSessionCookie(res, sessionId);
     res.status(201).json({ user: AuthService.publicUser(user) });
   })
@@ -51,7 +50,10 @@ authRouter.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId } });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: req.auth!.userId },
+      select: { id: true, name: true, email: true, role: true, organizationId: true, branchId: true },
+    });
     res.json({ user: AuthService.publicUser(user) });
   })
 );

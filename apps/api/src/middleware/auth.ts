@@ -26,7 +26,7 @@ export const attachSession = asyncHandler(async (req: Request, _res: Response, n
 
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
-    include: { user: true },
+    include: { user: { select: { id: true, organizationId: true, branchId: true, role: true, isActive: true } } },
   });
 
   if (!session || session.expiresAt < new Date() || !session.user.isActive) {

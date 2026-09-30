@@ -21,35 +21,38 @@ export async function registerOrganization(input: {
   password: string;
 }) {
   const passwordHash = await argon2.hash(input.password);
+  const sessionId = newSessionId();
+  const expiresAt = sessionExpiry();
 
-  const org = await prisma.organization.create({
-    data: {
-      name: input.organizationName,
-      slug: slugify(input.organizationName),
-      subscriptionPlan: "TRIAL",
-      subscriptionStatus: "TRIALING",
-      trialEndsAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), // 14-day trial
-      branches: {
-        create: { name: "Main Branch", isMain: true },
+  const { user } = await prisma.$transaction(async (tx) => {
+    const org = await tx.organization.create({
+      data: {
+        name: input.organizationName,
+        slug: slugify(input.organizationName),
+        subscriptionPlan: "TRIAL",
+        subscriptionStatus: "TRIALING",
+        trialEndsAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), // 14-day trial
+        branches: { create: { name: "Main Branch", isMain: true } },
       },
-    },
-    include: { branches: true },
+      include: { branches: true },
+    });
+
+    const user = await tx.user.create({
+      data: {
+        organizationId: org.id,
+        branchId: org.branches[0].id,
+        name: input.ownerName,
+        email: input.email.toLowerCase(),
+        passwordHash,
+        role: "OWNER",
+        sessions: { create: { id: sessionId, expiresAt } },
+      },
+    });
+
+    return { user };
   });
 
-  const mainBranch = org.branches[0];
-
-  const user = await prisma.user.create({
-    data: {
-      organizationId: org.id,
-      branchId: mainBranch.id,
-      name: input.ownerName,
-      email: input.email.toLowerCase(),
-      passwordHash,
-      role: "OWNER",
-    },
-  });
-
-  return { org, user };
+  return { user, sessionId };
 }
 
 export async function inviteUser(
@@ -84,14 +87,15 @@ export async function inviteUser(
 
 export async function login(identifier: string, password: string) {
   const loginName = identifier.trim();
+  const isEmail = loginName.includes("@");
   const matches = await prisma.user.findMany({
     where: {
       isActive: true,
-      OR: [
-        { email: loginName.toLowerCase() },
-        { name: { equals: loginName, mode: "insensitive" } },
-      ],
+      ...(isEmail
+        ? { email: loginName.toLowerCase() }
+        : { name: { equals: loginName, mode: "insensitive" as const } }),
     },
+    select: { id: true, name: true, email: true, passwordHash: true, role: true, organizationId: true, branchId: true },
   });
   const validMatches = [];
   for (const candidate of matches) {

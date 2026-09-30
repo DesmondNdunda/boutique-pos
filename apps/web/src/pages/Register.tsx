@@ -43,7 +43,7 @@ export function Register() {
         ))}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button disabled={loading} className="w-full bg-brand text-white rounded-md py-2 text-sm font-medium disabled:opacity-50">
-          {loading ? "Creating..." : "Create store"}
+          {loading ? <><span className="loading-spinner mr-2" aria-hidden="true" />Creating...</> : "Create store"}
         </button>
         <p className="text-center text-sm text-slate-500">
           Already have a store? <Link to="/login" className="text-brand font-medium">Sign in</Link>
